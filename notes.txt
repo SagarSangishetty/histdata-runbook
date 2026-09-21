@@ -1,0 +1,8 @@
+
+#Destroy command
+terraform plan -destroy \
+  -input=false \
+  -lock-timeout=5m \
+  -var-file=dev.tfvars \
+  -var='cluster_public_access_cidrs=["49.43.26.202/32"]' \
+  -out=dev-destroy.tfplan
