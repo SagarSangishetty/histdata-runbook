@@ -28,7 +28,14 @@ kubectl apply \
   --namespace argocd \
   8081:443
   
-  https://localhost:8081
+  kubectl port-forward \
+  service/argocd-server \
+  --namespace argocd \
+  8085:443
+  
+  
+kubectl port-forward service/argocd-server --namespace argocd 8081:443
+kubectl port-forward service/argocd-server --namespace argocd 8085:443
   
  User name admin
  

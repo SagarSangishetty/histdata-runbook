@@ -1,0 +1,9 @@
+90-second project introduction
+
+HistData is a modernization platform for distributing historical market data to subscribed clients. The original process depended on on-premises systems, so we designed an AWS-based platform where historical files are synchronized into S3 and accessed through a Spring Boot portal running on Amazon EKS.
+
+Terraform provisions the VPC, EKS, Oracle RDS, S3, IAM roles, Secrets Manager, Route 53, ACM and related infrastructure using reusable modules. GitHub Actions uses OIDC instead of permanent AWS credentials. It tests the application, builds a non-root Docker image and pushes an immutable SHA-tagged image to ECR.
+
+Helm defines the Kubernetes resources, while Argo CD continuously reconciles the desired configuration from the deployment repository. External Secrets retrieves Oracle credentials through IRSA, and the application uses a separate IRSA role for controlled S3 access. The AWS Load Balancer Controller provisions the public ALB, with Route 53 and ACM providing the domain and HTTPS.
+
+I implemented and tested the dev platform end to end. Production is designed using the same modules but with a separate Terraform root, state, VPC, EKS cluster, RDS instance, secrets, IAM roles and approval-controlled promotion. In a real organization, dev and production would preferably be placed in separate AWS accounts.

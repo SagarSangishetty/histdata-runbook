@@ -1,0 +1,14 @@
+| Component              | Purpose                                                 | Dependency                               | Failure impact                                  |
+| ---------------------- | ------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------- |
+| Terraform backend      | Stores infrastructure state and locks operations        | S3, IAM and GitHub OIDC                  | Terraform cannot safely plan or apply           |
+| GitHub Actions         | Tests code, builds images and runs Terraform workflows  | GitHub OIDC and IAM roles                | Delivery automation stops                       |
+| ECR                    | Stores immutable application images                     | Application CI and IAM                   | EKS cannot pull new images                      |
+| VPC                    | Provides isolated networking                            | Subnets, routes, NAT and security groups | EKS and RDS connectivity fails                  |
+| EKS                    | Runs the application and platform controllers           | VPC, IAM, node groups and OIDC           | Application workloads become unavailable        |
+| ALB Controller         | Creates ALB resources from Kubernetes Ingress           | EKS, IRSA, tagged subnets                | Public application routing fails                |
+| Argo CD                | Reconciles Kubernetes state from Git                    | EKS and deployment repository            | Automated deployments and drift correction stop |
+| External Secrets       | Copies credentials from Secrets Manager into Kubernetes | IRSA and Secrets Manager                 | Application cannot obtain database credentials  |
+| Oracle RDS             | Stores application and download-audit data              | Private networking, SG and secret        | Login and audit functions fail                  |
+| S3 data bucket         | Stores historical market files                          | Application IRSA                         | File listing and downloads fail                 |
+| Route 53 and ACM       | Provide DNS and TLS certificate                         | ALB and hosted zone                      | Users cannot securely access the domain         |
+| Prometheus and Grafana | Monitor workload and platform health                    | EKS metrics and application metrics      | Reduced incident visibility                     |

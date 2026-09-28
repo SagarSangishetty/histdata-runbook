@@ -1,0 +1,6 @@
+Revision notes
+1. One shared chart: Dev and prod use charts/histdata; differences live in their separate values files.
+2. Prod values: Set the prod ECR URL, image SHA, S3 bucket, Oracle endpoint, application IRSA role, secret ARN, hostname, and ACM certificate. Replace the placeholders after Terraform creates those resources.
+3. Prod Argo CD Application: Points to the shared chart plus environments/prod/values.yaml. Once installed in the prod cluster, it synchronizes merged GitOps changes.
+4. Release path: A tested dev image is copied to prod ECR. The application promotion workflow opens a prod values PR when its GitOps option is enabled. Merging that PR changes the image Argo CD deploys.
+5. Before activation: Install the prod platform add-ons and AppProject, populate the application secret, fix the missing line continuation in platform-addons/install.sh, and replace every REPLACE_* value. Keep the prod Argo CD Application unapplied until then.

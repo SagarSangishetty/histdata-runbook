@@ -1,0 +1,100 @@
+VPC
+ |
+ +--> Public Subnets
+ |      |
+ |      +--> Internet Gateway
+ |      +--> NAT Gateway
+ |      +--> Internet-facing ALB
+ |
+ +--> Private Subnets
+ |      |
+ |      +--> EKS Cluster / Worker Nodes
+ |             |
+ |             +--> EKS OIDC Provider
+ |             |      |
+ |             |      +--> App IRSA Role
+ |             |      +--> External Secrets IRSA Role
+ |             |      +--> ALB Controller IRSA Role
+ |             |
+ |             +--> Application Pods
+ |                    |
+ |                    +--> S3 Historical Data
+ |                    +--> Oracle RDS
+ |
+ +--> Database Subnets
+        |
+        +--> Oracle RDS
+
+S3
+└── Application IAM/IRSA role
+    └── Allows ListBucket/GetObject for CM/CD/FO prefixes
+
+Then the supporting dependencies are:
+
+ECR
+└── EKS worker nodes
+    └── Pull application container images
+
+RDS
+├── Database subnets
+├── RDS security group
+│   └── Allows port 1521 from EKS
+└── Secrets Manager
+    └── External Secrets
+        └── Kubernetes secret
+            └── Application
+
+Route 53
+└── DNS hosted zone
+    └── ACM DNS validation
+        └── ACM certificate
+            └── ALB HTTPS listener
+                └── Kubernetes Ingress
+                    └── Application Service
+                        └── Application Pods
+                        
+                        
+Terraform dependency flow
+
+Network
+   ↓
+EKS + RDS foundation
+   ↓
+IAM / OIDC / IRSA
+   ↓
+Storage + ECR
+   ↓
+Application/platform controllers
+   ↓
+ALB
+   ↓
+ACM + Route 53
+   ↓
+Public HTTPS application
+
+
+
+For our project specifically, the network module creates the VPC, public/private/database subnets, NAT, route tables and Kubernetes subnet tags. The EKS and RDS modules consume those network outputs.   HistData_Project_Chat_Handover
+
+EKS then creates its OIDC provider, which is required by the IAM module to create IRSA trust relationships for the application, External Secrets, and AWS Load Balancer Controller.   HistData_Project_Chat_Handover
+
+RDS depends on the database subnets and EKS-related security-group access, while Secrets Manager provides the database credentials consumed through External Secrets.   HistData_Project_Chat_Handover
+
+The final public path is:
+User
+ ↓
+Route 53
+ ↓
+ALB
+ ↓
+HTTPS / ACM certificate
+ ↓
+Ingress
+ ↓
+Kubernetes Service
+ ↓
+Spring Boot Pods
+ ↓
+S3 + Oracle RDS
+
+I structure the Terraform dependencies from the network upward. The VPC creates public, private and database subnets. EKS runs in the private networking and creates an OIDC provider used for IRSA roles. RDS runs in isolated database subnets and allows Oracle traffic only from EKS. The application accesses S3 using IRSA and gets database credentials from Secrets Manager through External Secrets. The Load Balancer Controller creates the ALB, ACM provides TLS, and Route 53 points the application domain to the load balancer. Terraform builds most of this dependency graph automatically through module output references.

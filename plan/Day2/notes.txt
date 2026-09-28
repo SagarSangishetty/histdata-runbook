@@ -1,0 +1,46 @@
+- S3 remote state
+  Instead of keeping terraform.tfstate only on a developer laptop, we store it centrally in S3. In your project, dev and prod each use their own state bucket and state key. This lets CI/CD and engineers use the same source of truth and avoids local-state conflicts.   
+
+- Native locking
+  Terraform uses S3 native locking with:
+  use_lockfile = true
+  
+  This prevents two Terraform operations from changing the same state at the same time. For example, if one prod apply is running, another operation should not update that state concurrently.   
+  
+- State versioning
+  The S3 state buckets have versioning enabled. If the state file is accidentally overwritten or corrupted, an older object version can be restored. This is one of the main recovery protections for remote state.   
+
+- Environment isolation
+  Dev and prod are isolated using separate AWS accounts, separate state buckets, separate state keys, separate environment roots, separate IAM roles, separate VPCs, separate EKS clusters, separate databases, and separate GitHub environments. This reduces blast radius and helps prevent accidental changes to the wrong environment.   
+
+- Drift
+  Drift means the real AWS infrastructure no longer matches the Terraform configuration/state. Example: someone manually changes a security group or deletes a resource in the AWS console. A later Terraform plan will detect the difference and show what Terraform wants to change to bring reality back to the desired configuration.
+
+- Terraform import
+  terraform import is used when a resource already exists in AWS but is not yet tracked in Terraform state. You first write the matching Terraform resource block, then import the existing AWS resource into state. After that, Terraform can manage it. This is useful for manually created resources that you later want Terraform to own.
+
+- Refresh-only plan
+  A refresh-only plan updates Terraform’s understanding of the real infrastructure without proposing configuration-driven infrastructure changes. Typical command:
+  terraform plan -refresh-only
+  This is useful when you want to inspect drift and synchronize state metadata with what actually exists in AWS.
+
+- Recovery
+  Recovery means restoring Terraform control if state is damaged, lost, or inconsistent. In your setup, the main recovery options are:
+  1. Restore an older S3 state version.
+  2. Use Terraform import for existing resources if state entries are missing.
+  3. Run a plan or refresh-only plan to compare state with AWS.
+  4. Never manually recreate state unless absolutely necessary.
+  5. Keep bootstrap state separate so the backend itself is still available even if an environment is destroyed.   
+
+A good short interview answer is:
+“We store Terraform state remotely in versioned S3 and use native locking to prevent concurrent updates. Dev and prod have separate accounts, state buckets and keys, so environments are isolated. Drift is detected through Terraform plan, existing unmanaged resources can be brought under Terraform using import, refresh-only plans help reconcile state with real infrastructure, and state recovery is mainly handled through S3 version history plus import and plan-based reconciliation.”
+
+For your Day 2 notes, the easiest memory line is:
+Remote state = shared source of truth
+Locking = prevent concurrent changes
+Versioning = rollback state
+Isolation = separate envs
+Drift = real infra != Terraform
+Import = bring existing resource into state
+Refresh-only = sync state view
+Recovery = restore state/import/reconcile

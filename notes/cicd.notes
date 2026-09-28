@@ -1,0 +1,13 @@
+HistData image release workflow — revision notes
+Stage	What happens
+1. App PR	Maven tests run before the application change is merged.
+2. Merge to app main	CI tests again, builds one Docker image, and pushes it to dev ECR as histdata-app:<commit-SHA>.
+3. Dev promotion PR	CI opens a PR changing environments/dev/values.yaml to that SHA. Merging it lets dev Argo CD deploy the image.
+4. Test and fix	If the app is broken, merge a fix and repeat the process. Each build has its own SHA tag.
+5. Prod promotion	Run the manual workflow after confirming the dev release works. It reads the SHA from the merged dev values file, resolves its digest in dev ECR, then copies and verifies that image in prod ECR. It does not choose the newest ECR tag.
+6. Prod deployment	Once prod values exist, enable the prod GitOps PR option. Merge that PR to let prod Argo CD deploy the promoted image. This option is currently off by default.
+
+
+Access to remember: The dev selection job uses the existing dev OIDC role trusted for app main. The copy job waits for the protected prod GitHub Environment and uses a prod OIDC role. That prod role will need narrowly scoped read access to the dev ECR repository and write access to prod ECR.
+Key interview sentence: “We build the image once, test its SHA-tagged version in dev, and promote the same verified digest across accounts. GitOps PRs control when Argo CD deploys it in each environment.”
+This describes the designed prod workflow. Prod infrastructure, role permissions, values, and deployment are still pending; we have not run a prod release.
