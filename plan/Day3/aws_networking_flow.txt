@@ -1,0 +1,35 @@
+DNS finds the destination, routes provide the network path, and security groups allow or block traffic. Security groups do not route it.
+Your handover confirms an internet-facing ALB, HTTPS with ACM, pod IP targets on 8080, and private Oracle RDS on 1521. It doesn’t contain every deployed SG rule, so the table below explains the required permissions rather than claiming exact live settings.
+1. User enters the application URL
+For example: https://dev.histdata.sagarshetty.online
+The browser asks its DNS resolver for the domain’s IP address. If the answer isn’t cached, DNS resolution reaches the Route 53 hosted zone.
+Your Alias A record points to the ALB, and DNS returns the ALB’s public IP addresses. Route 53 handles this lookup; the application request itself doesn’t travel through Route 53.
+2. Browser connects to the ALB using HTTPS
+The browser connects to the ALB on TCP 443, through the internet and the VPC’s Internet Gateway. The ALB sits in public subnets.
+The certificate is managed in ACM and attached to the ALB’s HTTPS listener. Your Ingress specifies its ARN, and the AWS Load Balancer Controller configures the listener to use it. During the TLS handshake, the browser validates the certificate for your domain. HTTPS encryption terminates at the ALB. Elastic Load Balancing
+Route 53 also contains a separate ACM DNS-validation record proving domain ownership. That record is not the certificate.
+If someone starts with HTTP on 80, your configured SSL redirect sends them to HTTPS on 443.
+3. ALB selects the application pod
+The HTTPS listener evaluates the hostname/path rules and selects the application’s target group. In our setup, that group contains pod private IPs on port 8080.
+
+
+4. How Ingress and Service configure this
+
+| Component | What it does |
+|---|---|
+| **Ingress** | Defines the domain/path, certificate ARN, HTTPS redirect and backend Service. |
+| **Service** | Selects application pods using labels and maps the Service port to the pod’s port 8080. |
+| **AWS Load Balancer Controller** | Reads Kubernetes configuration and updates the ALB, listener rules and registered pod targets. |
+| **ALB** | Handles actual user requests and forwards them to targets. |
+
+
+5. Security-group permissions along the path
+
+| Security group | Direction | Required permission |
+|---|---|---|
+| **ALB SG** | Inbound | TCP **443** from users; typically `0.0.0.0/0` for a public IPv4 application. |
+| **ALB SG** | Inbound | TCP **80** from users for HTTP-to-HTTPS redirection. |
+| **ALB SG** | Outbound | TCP **8080** to application targets, including health checks. |
+| **SG protecting the pod’s network interface** | Inbound | TCP **8080** from the ALB-associated SG used for backend access. |
+| **EKS workload SG** | Outbound | TCP **1521** to RDS; TCP **443** for required AWS/API access. |
+| **RDS SG** | Inbound | TCP **1521** from the EKS workload/cluster SG—not from the internet. |

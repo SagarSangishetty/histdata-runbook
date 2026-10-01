@@ -1,0 +1,15 @@
+For our setup, using ALB IP targets, the flow is:
+1. Domain → Route 53: The browser resolves the domain through DNS. Our Route 53 Alias record points to the ALB.
+2. Browser → ALB: The browser connects to the ALB over HTTPS. The ALB uses the ACM certificate to handle TLS.
+3. ALB listener rules: The ALB checks the hostname/path and selects the matching target group.
+4. ALB → pod: It forwards the request directly to a healthy pod’s private IP and application port.
+5. Pod → RDS or S3: Depending on the request, the application queries Oracle RDS for application data or accesses S3 for files. RDS and S3 are separate dependencies, not consecutive hops.
+6. Response: The application sends its response through the ALB back to the browser.
+
+
+Where do Ingress and Service fit?
+
+Component				Role in our setup
+Ingress				Defines the hostname/path routing and identifies the backend Service.
+Service				Selects the application pods and defines the backend port mapping.
+AWS Load Balancer Controller	Reads these Kubernetes resources and configures the ALB, listener rules and pod targets.

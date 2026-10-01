@@ -1,0 +1,53 @@
+1. ALB subnet discovery — where should AWS create the ALB?
+The AWS Load Balancer Controller needs to select subnets for the ALB. For automatic discovery, subnet tags identify their purpose:
+Subnet purpose	Tag	Value
+Public, for an internet-facing ALB	kubernetes.io/role/elb	1
+Private, for an internal ALB	kubernetes.io/role/internal-elb	1
+
+
+Our internet-facing ALB uses public subnets across at least two Availability Zones.
+The tag helps discovery; it does not make a subnet public. The subnet’s route table needs a route to an Internet Gateway. We can also explicitly specify subnet IDs instead of using automatic discovery.
+Interview answer: “We tag our public subnets so the AWS Load Balancer Controller can discover suitable subnets across Availability Zones and provision the internet-facing ALB.”
+
+2. Pod IP targets — where does the ALB send requests?
+Our Ingress uses:
+alb.ingress.kubernetes.io/target-type: ip
+
+The target group contains pod private IP addresses and port 8080. The AWS VPC CNI gives our pods IP addresses reachable within the VPC.
+The controller updates target registration as pods change. ALB health checks determine whether targets are healthy enough to receive traffic.
+Target type	Request path
+ip — our setup	ALB → pod IP and application port
+instance	ALB → worker node’s NodePort → pod
+
+
+Interview answer: “We use IP targets so the ALB forwards directly to pod private IPs. The controller maintains target registration as pods are replaced or scaled.”
+
+3. Private RDS connectivity — how does the pod reach Oracle?
+Our RDS instance has public access disabled and sits in database subnets.
+The application:
+1. Resolves the RDS endpoint hostname to a private IP.
+2. Connects through the VPC’s local routing on TCP 1521.
+3. Passes the RDS SG check: the source must match the permitted EKS workload/cluster SG.
+4. Authenticates using database credentials supplied through Secrets Manager and External Secrets.
+Network access and database authentication are separate checks. IRSA lets External Secrets retrieve the secret; our application then uses the database username and password to connect.
+Interview answer: “Oracle RDS is private. Pods connect over VPC local routing on port 1521, permitted by an SG reference to the EKS workload security group. Database credentials come through Secrets Manager and External Secrets.”
+
+4. ACM validation — how do we prove ownership of the domain?
+When we request a certificate from ACM, AWS gives us a DNS CNAME record to add to the domain’s DNS zone.
+For example, using illustrative values:
+Name:   _abc.dev.histdata.sagarshetty.online
+Value:  _xyz.acm-validations.aws
+
+ACM checks that record to verify control of the domain. Once validation succeeds, ACM can issue the certificate.
+Our Terraform DNS module creates the certificate and validation record. The issued certificate’s ARN is then used by the ALB HTTPS listener.
+Keep the validation record: it supports automatic renewal while the certificate remains eligible and in use.
+Interview answer: “We use ACM DNS validation. Terraform creates the validation CNAME in Route 53, and the issued certificate is attached to the ALB’s HTTPS listener.”
+5. Route 53 Alias routing — how does the domain point to the ALB?
+Our application’s Alias A record points to the ALB resource:
+Record	Purpose
+Application Alias A record	Resolves the application domain to the ALB’s current IPv4 addresses.
+ACM validation CNAME record	Proves domain ownership for certificate issuance and renewal.
+
+
+We reference the ALB, rather than manually copying its IP addresses, because those addresses can change.
+For prod, the parent hosted zone delegates the prod subdomain to the hosted zone in the prod account using NS records. The application Alias record belongs in that prod zone.
