@@ -1,0 +1,9 @@
+Your five failure scenarios
+
+| Scenario | First checks |
+|---|---|
+| **1. Domain does not resolve** | Correct hosted zone, Alias target and NS delegation—especially for the prod account. |
+| **2. Domain resolves, but HTTPS times out** | ALB public-subnet routes to IGW, ALB SG inbound 443 and HTTPS listener. |
+| **3. Browser shows a certificate error** | Certificate covers the hostname, is valid, and is attached to the correct ALB listener. Check ACM validation if issuance is pending. |
+| **4. ALB targets are unhealthy** | Pod readiness, application listening on 8080, health-check path/port, Service endpoints and target SG rules. |
+| **5. Application opens, but data or files fail** | For RDS: endpoint, SG 1521 and credentials. For S3: NAT/endpoint connectivity and IRSA/IAM permissions. A timeout suggests a different problem from `AccessDenied`. |

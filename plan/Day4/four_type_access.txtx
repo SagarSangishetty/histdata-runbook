@@ -1,0 +1,150 @@
+DAY 4 - IDENTITY AND SECURITY
+Goal:
+Understand who accesses AWS, how they prove their identity, and what they are allowed to do.
+FOUR TYPES OF ACCESS
+1. IAM Identity Center - Human access
+   Used by developers and administrators to access AWS accounts through a central sign-in portal.
+2. GitHub OIDC - CI/CD access
+   Allows GitHub Actions to obtain temporary AWS credentials without storing long-lived AWS access keys.
+3. EKS OIDC with IRSA - Workload access
+   Allows pods to obtain temporary AWS credentials using an IAM role associated with their Kubernetes service account.
+4. EKS access entries - Kubernetes cluster access
+   Configure which IAM identities can access the EKS cluster. Kubernetes permissions are granted through associated access policies or Kubernetes RBAC.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+ORGANIZATION APPROACH - HUMAN ACCESS TO AWS
+One person uses one individual identity to access multiple AWS accounts. Our single Sagar user accessing dev and prod follows this principle. Each engineer should have their own identity.
+1. CENTRAL USER MANAGEMENT
+Manage employees centrally through IAM Identity Center or a connected company identity provider.
+Examples of company providers: Microsoft Entra ID or Okta.
+Users sign in with their individual company identity and MFA.
+2. ACCESS THROUGH GROUPS
+Create groups based on job responsibilities.
+Example:
+DevOps-Dev -> Dev account -> Developer permissions
+DevOps-ProdReadOnly -> Prod account -> Read-only permissions
+Platform-Admins -> Required accounts -> Administrator permissions
+Add employees to the appropriate groups. Prefer group assignments over assigning permissions separately to every user.
+3. DIFFERENT PERMISSIONS PER ACCOUNT
+The same engineer can belong to multiple groups.
+Example for Sagar:
+Dev: Permissions needed to build and troubleshoot.
+Prod: Read-only access for normal investigation.
+Prod changes: Separate restricted role accessed through the organization's approval process.
+AdministratorAccess is suitable for designated administrators. Our dev administrator assignment is a lab choice; actual permissions depend on job responsibilities.
+4. EMPLOYEE ACCESS LIFECYCLE
+Joining:
+Create or synchronize the identity and add it to approved groups.
+Changing teams:
+Update group membership to match the new responsibilities.
+Leaving:
+Disable the identity, remove access, and revoke active sessions where supported.
+5. REVIEW AND AUDIT
+Periodically review group membership and account assignments.
+Use CloudTrail to audit AWS actions.
+Keep emergency access separately controlled and monitored.
+HOW WE WILL APPLY THIS TO OUR LAB
+Keep Sagar as our administrator.
+Use individual test users to represent employees.
+Create separate dev and prod access groups.
+Assign permission sets to those groups per account.
+Test which accounts and roles each user can access.
+Our existing Read-Only group is valid if its members are intended to have production read access. Separate groups make different dev and prod access requirements easier to manage.
+INTERVIEW ANSWER
+"We manage individual identities centrally through IAM Identity Center and assign account permissions through groups. An engineer uses one identity across accounts, with different permissions for dev and prod. We use MFA and temporary sessions, review access regularly, and update or remove group membership when employees join, change roles or leave."
+For three years of experience, you should be able to explain this approach, configure group-based assignments, verify access, and troubleshoot a missing account or role in the access portal.
+
+--------------------------------------------------------------------------------------------------------------------------------
+GITHUB OIDC FOR CI
+
+PURPOSE
+Allow GitHub Actions to access AWS using temporary credentials.
+OUR IMPLEMENTATION
+1. Terraform bootstrap creates a GitHub OIDC provider in each AWS account:
+   token.actions.githubusercontent.com
+2. We create separate IAM roles for different tasks:
+   Terraform role: Infrastructure operations.
+   Application CI role: Push images to ECR.
+   Deployment role: Describe EKS and obtain configured cluster access.
+3. Each role has two policies:
+   Trust policy: Which GitHub repository, branch or environment can assume it.
+   Permissions policy: Which AWS operations it can perform.
+4. The workflow has:
+   id-token: write
+   This allows it to request an OIDC token. It does not grant AWS permissions.
+5. The AWS credentials action sends the token and target role ARN to AWS STS using AssumeRoleWithWebIdentity.
+6. AWS validates the token and checks the role's trust conditions, including audience and subject.
+7. STS returns temporary credentials. Subsequent workflow steps use those credentials.
+PROJECT EXAMPLES
+Application CI:
+Run tests -> Assume ECR publishing role -> Build image -> Push image to ECR.
+Terraform CI:
+Assume Terraform role -> Initialize remote state -> Generate plan -> Apply when requested.
+Our prod Terraform role trusts the configured repository subject for the GitHub environment named prod.
+SECURITY CHECKS
+- Correct target account and role ARN.
+- Trust restricted to the intended repository and branch/environment.
+- Role permissions limited to its task.
+- No permanent AWS access keys stored in GitHub.
+COMMON FAILURE WE ENCOUNTERED
+Error: Credentials could not be loaded.
+We checked:
+- id-token: write.
+- Repository variable name and role ARN.
+- Trust-policy subject.
+- Workflow branch or environment.
+After correcting the configuration, the image push succeeded.
+INTERVIEW ANSWER
+"We configured GitHub OIDC providers and separate IAM roles for our CI tasks. Workflows request an identity token and exchange it through AWS STS for temporary credentials. Trust policies restrict which repository and branch or environment can assume each role, while permissions policies control its AWS operations."
+
+----------------------------------------------------------------------------------------------------------------------
+EKS OIDC FOR WORKLOADS AND EKS ACCESS ENTRIES
+1. EKS OIDC WITH IRSA - PODS ACCESSING AWS
+Purpose:
+Give each workload the AWS permissions it needs using temporary credentials.
+OUR IMPLEMENTATION
+Terraform creates the cluster's IAM OIDC provider and separate IAM roles.
+We map each role to a Kubernetes service account using this annotation:
+eks.amazonaws.com/role-arn
+Our roles:
+Application:
+Service account: histdata/histdata-app
+Permissions: List and read approved S3 prefixes: CM, CD and FO.
+External Secrets Operator:
+Service account: external-secrets/external-secrets
+Permissions: Read the application secret from Secrets Manager.
+AWS Load Balancer Controller:
+Service account: kube-system/aws-load-balancer-controller
+Permissions: Manage the required load-balancing resources.
+HOW IT WORKS
+1. The pod runs using its assigned service account.
+2. A projected service-account token is available inside the pod.
+3. The AWS SDK exchanges that token with AWS STS.
+4. STS checks the role's trust policy against the cluster OIDC provider, audience and service-account subject.
+5. STS returns temporary credentials.
+6. The role's permissions policy controls the allowed AWS operations.
+INTERVIEW ANSWER
+"We implemented IRSA with separate IAM roles for the application, External Secrets Operator and AWS Load Balancer Controller. Each role trusts a specific Kubernetes service account and grants the AWS permissions required by that workload."
+2. EKS ACCESS ENTRIES - IAM IDENTITIES ACCESSING KUBERNETES
+Purpose:
+Allow an IAM identity to authenticate to the EKS cluster and receive appropriate Kubernetes permissions.
+OUR IMPLEMENTATION
+We manage EKS access entries through Terraform in the environment root.
+The handover confirms an access entry for the GitHub deployment role. It does not record the exact associated Kubernetes permissions.
+HOW IT WORKS
+1. A person or pipeline obtains AWS credentials for its IAM role.
+2. kubectl uses an authentication token generated through AWS CLI.
+3. EKS recognizes the IAM role through its access entry.
+4. Associated EKS access policies or Kubernetes RBAC determine the permitted Kubernetes operations.
+IMPORTANT DISTINCTION
+eks:DescribeCluster allows reading AWS cluster information.
+Permission to list pods or create deployments is controlled separately through EKS access policies or Kubernetes RBAC.
+The cluster endpoint must also be reachable over the network.
+Our normal application releases use Argo CD to reconcile Git changes.
+INTERVIEW ANSWER
+"We manage EKS access entries using Terraform to provide IAM-based cluster access. Access entries identify the permitted IAM roles, while EKS access policies or Kubernetes RBAC authorize Kubernetes operations."
+REMEMBER
+IRSA:
+Pod identity -> IAM role -> AWS services.
+EKS access entry:
+IAM identity -> EKS cluster -> Kubernetes operations.

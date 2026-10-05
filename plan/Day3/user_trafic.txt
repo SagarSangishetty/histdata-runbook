@@ -13,3 +13,16 @@ Component				Role in our setup
 Ingress				Defines the hostname/path routing and identifies the backend Service.
 Service				Selects the application pods and defines the backend port mapping.
 AWS Load Balancer Controller	Reads these Kubernetes resources and configures the ALB, listener rules and pod targets.
+
+
+-----------------------------------------------------------
+
+Explain where traffic is public and private
+
+| Connection | Network path | What allows it? |
+|---|---|---|
+| Browser → Route 53 | Public DNS lookup | Hosted-zone delegation and the application Alias record |
+| Browser → ALB | Public internet → ALB public subnets | Internet Gateway attached to VPC, subnet route to it, ALB SG inbound **443** |
+| ALB → pod | Private IP connection inside VPC | VPC local route, ALB outbound permission, target SG inbound **8080** from the permitted ALB-associated SG |
+| Pod → RDS | Private connection inside VPC | VPC local route, workload outbound permission, RDS SG inbound **1521** from the workload SG; database credentials authenticate |
+| Pod → S3 | Private subnet → NAT → public S3 endpoint | Default route to NAT, NAT subnet route to IGW, outbound **443**, and IRSA/IAM permissions for the requested S3 operation |

@@ -1,0 +1,49 @@
+INCIDENT 1 - GITHUB OIDC CONFIGURATION / SUBJECT MISMATCH
+Problem:
+The application CI workflow failed to obtain AWS credentials.
+
+Recorded error:
+Credentials could not be loaded
+Investigation:
+1. Checked id-token: write in the workflow.
+2. Checked the repository variable supplying the role ARN.
+3. Checked that the correct IAM role was selected.
+4. Checked the trust-policy subject against the workflow's repository and branch/environment.
+
+Fix:
+Corrected the role, variable and trust configuration. The workflow obtained credentials and successfully pushed the image.
+
+Important:
+The handover does not preserve the exact failed subject value. The error alone does not prove a subject mismatch.
+
+Lesson:
+The token's subject must match the role's trust conditions. A branch-based subject and an environment-based subject are different.
+Interview answer:
+"Our application pipeline could not obtain AWS credentials. We checked the workflow token permission, role variable and OIDC trust conditions. After correcting the configuration, authentication and image publishing succeeded."
+
+INCIDENT 2 - CROSS-ACCOUNT ECR PERMISSION DENIED
+Problem:
+The prod promotion role could not read the image from the dev ECR repository.
+Recorded denied action:
+ecr:BatchGetImage
+
+Cause:
+The dev ECR repository policy did not allow the prod role to read the image.
+
+Fix:
+Updated the dev repository policy to allow the intended prod role principal to perform the required image-read operations.
+Important:
+
+Cross-account access requires appropriate permissions on the calling role AND permission from the repository-owning account.
+Lesson:
+Successful role assumption does not guarantee access to an AWS resource.
+
+Interview answer:
+"During image promotion, the prod role was denied ecr:BatchGetImage against dev ECR. We identified the missing cross-account repository permission and updated the dev repository policy to allow the prod role."
+
+TROUBLESHOOTING ORDER
+Cannot obtain role credentials:
+Check workflow configuration, OIDC provider and trust policy.
+Credentials obtained, AWS operation denied:
+Check the denied action, resource, role permissions and resource policy.
+For our ECR incident, the missing permission was in the repository policy, rather than the OIDC trust policy.

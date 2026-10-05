@@ -1,0 +1,76 @@
+IAM ROLES USED IN OUR PROJECT
+Terraform creates the roles. Each role has:
+Trust policy: Who can assume it.
+Permissions policy: What it can do.
+1. GITHUB TERRAFORM ROLE
+Used by: Terraform workflow in GitHub Actions.
+Trust: GitHub OIDC provider, restricted to the infrastructure repository's configured branch or environment.
+Permissions: AdministratorAccess for our lab infrastructure operations.
+Purpose: Create and manage AWS infrastructure.
+Dev trusts the configured main-branch subject.
+Prod trusts the GitHub environment named prod.
+
+2. GITHUB APPLICATION CI ROLE
+Used by: Application build workflow in GitHub Actions.
+Trust: Same GitHub OIDC provider, restricted to the application repository's configured branch or environment.
+Permissions: Authenticate to ECR and push images to the intended repository.
+Purpose: Publish application container images.
+
+3. GITHUB DEPLOY ROLE
+Used by: Workflows that directly access EKS.
+Trust: Same GitHub OIDC provider, restricted to the deployment repository's configured branch or environment.
+Permissions: Describe EKS; Kubernetes access is granted separately through an EKS access entry and access policies or RBAC.
+Purpose: Direct cluster operations from CI.
+Our normal GitOps application releases use Argo CD and do not require this role.
+
+4. AWS LOAD BALANCER CONTROLLER ROLE
+Used by: AWS Load Balancer Controller pod.
+Service account: kube-system/aws-load-balancer-controller
+Trust: Cluster's EKS OIDC provider and this specific service account.
+Permissions: Manage required ALB, target-group and related AWS resources.
+Purpose: Configure AWS load balancing from Kubernetes Ingress and Service resources.
+
+5. EXTERNAL SECRETS OPERATOR ROLE
+Used by: External Secrets Operator pod.
+Service account: external-secrets/external-secrets
+Trust: Cluster's EKS OIDC provider and this specific service account.
+Permissions: Read the application secret from AWS Secrets Manager.
+Purpose: Synchronize database credentials into a Kubernetes Secret.
+
+6. APPLICATION IRSA ROLE
+Terraform output: app_irsa_role_arn
+Used by: Application pod.
+Service account: histdata/histdata-app
+Trust: Cluster's EKS OIDC provider and this specific service account.
+Permissions: List and read S3 data within approved CM, CD and FO prefixes.
+Purpose: Access application files in S3 using temporary credentials.
+
+7. EKS CLUSTER ROLE
+Used by: EKS service.
+Trust: eks.amazonaws.com
+Purpose: Allow EKS to manage required AWS resources for the cluster.
+
+8. EKS NODE ROLE
+Used by: EC2 worker nodes.
+Trust: ec2.amazonaws.com
+Purpose: Provide AWS permissions needed by worker nodes, including pulling container images from ECR.
+
+9. IDENTITY CENTER ROLE
+Used by: Engineers through SSO.
+Created by: IAM Identity Center when a permission set is provisioned into an account.
+Permissions: Determined by the assigned permission set, such as AdministratorAccess or ReadOnlyAccess.
+Purpose: Human access to AWS accounts using temporary sessions.
+IMPORTANT: THIS IS A SECRET, NOT A ROLE
+oracle_application_secret_arn:
+Identifies the Secrets Manager secret containing database credentials.
+Database credential flow:
+ESO uses its IAM role to read the secret.
+ESO synchronizes credentials into a Kubernetes Secret.
+The application receives those credentials.
+The application authenticates to Oracle using the database username/password.
+The RDS security group permits network connectivity on port 1521.
+OIDC PROVIDERS TO REMEMBER
+GitHub OIDC provider:
+Shared by Terraform, application CI and deployment roles within an AWS account.
+EKS OIDC provider:
+Specific to the cluster; used by the ALB controller, ESO and application IRSA roles.
