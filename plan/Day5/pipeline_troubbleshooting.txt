@@ -1,0 +1,78 @@
+PIPELINE TROUBLESHOOTING
+Use this order:
+Identify the failed step -> Read the exact error -> Check its configuration -> Fix -> Rerun and verify.
+1. AUTHENTICATION FAILURE
+Symptom:
+The workflow cannot obtain AWS credentials or assume its role.
+Check:
+- Workflow has id-token: write.
+- Target IAM role ARN is correct.
+- GitHub OIDC provider is configured.
+- Trust-policy audience and subject match the workflow.
+- Repository, branch or GitHub environment matches the trusted identity.
+Fix:
+Correct the workflow or trust configuration.
+Verify:
+The credentials step succeeds. Run aws sts get-caller-identity to confirm the assumed role and account.
+2. ECR PERMISSION FAILURE
+Symptom:
+AWS authentication succeeds, but ECR login or image push returns AccessDenied.
+Check:
+- Exact denied action and resource in the error.
+- ecr:GetAuthorizationToken permission for login.
+- Required image-upload permissions on the target repository.
+- Correct registry, account and region.
+- Repository policy for cross-account access.
+Fix:
+Grant the missing permission to the intended role or repository policy.
+Verify:
+Login and image push succeed.
+Our real incident:
+The prod promotion role could not perform ecr:BatchGetImage against dev ECR. We fixed the dev repository policy to allow the prod role.
+3. BUILD CACHE PROBLEM
+Symptom:
+Repeated builds take longer because dependencies or layers are rebuilt.
+Check:
+- Build logs show cache hits or misses.
+- Cache import/export is configured for the CI runner.
+- Dockerfile copies dependency files before frequently changing source files.
+- Earlier layers changed, invalidating later layers.
+- Maven dependency cache and Docker build cache are checked separately.
+Fix:
+Correct cache configuration or Dockerfile layer order.
+Verify:
+A repeated build reuses unchanged work.
+Remember:
+A cache miss usually affects speed; it does not necessarily fail the build.
+4. JAVA VERSION FAILURE
+Symptom:
+release version 17 not supported
+Check:
+- java -version
+- mvn -version
+- Java version configured in GitHub Actions.
+- Java version in the Docker build stage.
+- Required Java version in pom.xml.
+Fix:
+Use a compatible JDK for compilation. Our application uses Java 17.
+Verify:
+Maven compiles and tests successfully.
+Our real incident:
+A local Maven build reported this error because the compiler did not support the required Java release.
+5. MISSING IMAGE TAG
+Symptom:
+A deployment cannot pull the requested image, often showing ImagePullBackOff or an image-not-found error.
+Check:
+- Exact repository and tag requested by the deployment.
+- That tag exists in the correct ECR account and region.
+- Image publishing completed successfully.
+- Helm values reference the published SHA.
+- For prod, image promotion completed before updating deployment values.
+Fix:
+Publish or promote the intended image, or correct the deployment reference.
+Verify:
+The image exists in ECR and the pod successfully pulls it.
+Remember:
+ImagePullBackOff can also result from authentication or network problems. Check pod events before concluding the tag is missing.
+INTERVIEW APPROACH
+“I first locate the failed pipeline step and read the exact error. I separate role authentication from ECR authorization, inspect cache logs for slow builds, verify Java compatibility for compilation errors, and confirm the requested image tag exists before investigating deployment failures.”

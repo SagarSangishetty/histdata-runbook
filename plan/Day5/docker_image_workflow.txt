@@ -1,0 +1,41 @@
+1. MULTI-STAGE DOCKERFILE
+Our Dockerfile has two stages:
+Build stage:
+Uses Maven and Java 17 to compile and package the application into a JAR.
+Runtime stage:
+Copies the JAR into a Java 17 JRE image and runs it on port 8080.
+Why:
+The final image contains the application and Java runtime. Maven and build tools stay in the build stage, reducing image size and unnecessary software.
+2. NON-ROOT RUNTIME
+Our container runs with UID/GID 10001.
+Why:
+The application does not need root privileges. Running as a regular user limits what a compromised application can do inside the container.
+Files and directories the application writes to must have appropriate permissions.
+3. BUILD CACHE
+Docker can reuse unchanged build layers instead of rebuilding everything.
+Example:
+If dependencies remain unchanged but application code changes, a well-structured Dockerfile can reuse dependency preparation.
+Maven dependency caching avoids downloading the same dependencies repeatedly.
+Docker layer caching avoids repeating unchanged image-build steps.
+The handover does not record our exact cache configuration. We need the Dockerfile and workflow to confirm what is enabled.
+4. WORKFLOW PERMISSIONS
+The relevant GitHub workflow permissions are:
+contents: read
+Allows checking out repository code.
+id-token: write
+Allows requesting an OIDC token for AWS authentication.
+AWS access is then controlled by the assumed IAM role's permissions policy.
+Any workflow that writes deployment changes to Git needs separate, appropriate GitHub write access.
+5. IMMUTABLE IMAGE TAGS
+Our pipeline tags images with the full Git commit SHA:
+${{ github.sha }}
+Our ECR repository has tag immutability enabled.
+SHA tag:
+Links the image to its source commit.
+ECR immutability:
+Prevents an existing tag from being overwritten.
+Image digest:
+Identifies the exact image content. Promoting the same digest ensures prod receives the image tested in dev.
+Re-pushing an existing SHA tag will fail if that tag already exists in the immutable repository.
+INTERVIEW ANSWER
+“Our Dockerfile builds the application with Maven and Java 17, then copies the JAR into a smaller JRE runtime running as a non-root user. Build caching reuses unchanged work. The workflow requests temporary AWS credentials through OIDC, and we publish commit-SHA tags to an immutable ECR repository for traceability and reliable image promotion.”

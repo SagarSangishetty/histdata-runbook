@@ -1,0 +1,28 @@
+APPLICATION CI FLOW
+1. PULL REQUEST
+   Developer opens a pull request to main.
+   GitHub Actions runs Maven tests.
+   We review the code and test results before merging.
+2. MERGE TO MAIN
+   Merging triggers the publishing workflow.
+   Maven tests run again on the merged code.
+3. GITHUB OIDC
+   The workflow requests an OIDC token.
+   AWS validates it against the application CI role’s trust policy.
+   AWS STS returns temporary credentials.
+4. ECR LOGIN
+   The workflow uses those credentials to authenticate Docker to ECR.
+5. DOCKER BUILDX
+   Builds the container image using our Dockerfile.
+6. SHA IMAGE TAG
+   The image receives the Git commit SHA as its tag.
+   This links the image to the exact source-code commit.
+7. ECR PUSH
+   The image is pushed to our ECR repository.
+   The CI role’s permissions authorize the push.
+A failed step stops subsequent steps in this sequence.
+INTERVIEW ANSWER
+“On a pull request, our pipeline runs Maven tests. After merging to main, it tests the merged code, obtains temporary AWS credentials through GitHub OIDC, logs in to ECR and builds the image using Docker Buildx. It tags the image with the commit SHA for traceability and pushes it to ECR.”
+WHY SHA AND OIDC?
+SHA tag: Identifies the code version and helps select a previous image for rollback. ECR tag immutability prevents that tag from being overwritten.
+OIDC: Provides temporary credentials, so we do not store long-lived AWS access keys in GitHub.
