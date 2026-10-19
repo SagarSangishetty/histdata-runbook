@@ -1,0 +1,29 @@
+1. CPU AND MEMORY REQUESTS
+Requests tell Kubernetes how much CPU and memory a container needs for scheduling.
+Example:
+requests:
+  cpu: 250m
+  memory: 256Mi
+250m means one-quarter of a CPU core.
+256Mi means 256 mebibytes of memory.
+The scheduler looks for a node with enough unallocated capacity for the pod’s requests. It considers existing resource requests, rather than just current CPU and memory usage.
+If no suitable node has enough capacity, the pod stays Pending.
+2. CPU AND MEMORY LIMITS
+Limits control how much the container can use.
+Example:
+limits:
+  cpu: 500m
+  memory: 512Mi
+CPU limit:
+The container gets up to half a CPU core’s worth of CPU time. If it needs more, it is throttled, which can slow the application.
+Memory limit:
+If the container exceeds its memory limit, it can be OOMKilled. Kubernetes may restart it according to the pod’s restart policy.
+3. REQUESTS ARE NOT USAGE CAPS
+With the example above:
+CPU:
+Requests 250m, but can use up to its 500m limit when CPU is available.
+Memory:
+Requests 256Mi, but can grow toward its 512Mi limit.
+The memory request does not preallocate a dedicated block of RAM.
+INTERVIEW ANSWER
+“Requests help Kubernetes schedule pods onto nodes with sufficient capacity. Limits constrain runtime consumption. CPU usage beyond the limit is throttled, while exceeding a memory limit can cause an OOM kill. A container can use more than its request when resources are available, subject to its limits.”

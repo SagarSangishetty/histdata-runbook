@@ -1,0 +1,43 @@
+HELM AND GITOPS
+Helm helps us generate Kubernetes configuration from reusable templates and environment-specific values.
+
+1. CHART
+A package containing the templates and default configuration needed to deploy an application.
+In our project:
+The application chart defines resources such as Deployment, Service, Ingress and ServiceAccount.
+
+2. VALUES
+Configuration supplied to the chart.
+Examples:
+Image tag or digest, replica count, domain, resource limits and IAM role ARN.
+In our project:
+Dev and prod use separate values files with the same application chart.
+
+3. TEMPLATES
+Kubernetes YAML files containing placeholders and logic.
+Example:
+The Deployment template reads the replica count and image reference from values.
+Helm fills these placeholders to generate Kubernetes YAML.
+
+4. RELEASE
+A named installation of a chart, managed by Helm when using helm install or helm upgrade.
+Important for our GitOps setup:
+Argo CD uses Helm to render the chart and manages the resulting resources itself. An Argo CD Application is not a Helm-managed release, so it generally does not appear in helm list.
+
+5. NAMESPACE
+A logical grouping of resources inside a Kubernetes cluster.
+In our project:
+The application runs in the histdata namespace.
+Namespaces help organize resources and scope permissions. They do not automatically provide network isolation.
+
+6. RENDERED MANIFESTS
+The final Kubernetes YAML produced after Helm combines templates with values.
+Example:
+Template placeholder: replicas from values
+Dev value: 2
+Rendered YAML: replicas: 2
+We can inspect the generated YAML before deployment:
+helm template histdata-app <chart-path> -f <dev-values-path> -n histdata
+This command renders configuration locally; it does not deploy it.
+OUR FLOW
+Application chart + Dev/Prod values -> Rendered manifests -> Argo CD applies them -> Kubernetes runs the application.

@@ -1,0 +1,53 @@
+ARGO CD AND GITOPS
+1. ARGO CD APPLICATION
+A Kubernetes resource that tells Argo CD:
+- Which Git repository and branch to track.
+- Which chart path and values files to use.
+- Which cluster and namespace to deploy into.
+- Whether automatic sync, self-heal and prune are enabled.
+Our project has separate Applications for dev and prod.
+2. DESIRED STATE
+The Kubernetes configuration we want, generated from the chart and values stored in Git.
+Example:
+Git specifies image version A and two replicas.
+3. LIVE STATE
+The actual configuration currently running in the cluster.
+Example:
+The cluster is running image version A with three replicas.
+4. DRIFT
+A difference between desired state and live state.
+In the example:
+Git requests two replicas, but the cluster has three.
+Argo CD normally marks the Application OutOfSync when it detects a relevant difference.
+5. SYNC
+Argo CD applies the desired configuration to the cluster.
+Manual sync:
+An engineer triggers Sync.
+Automatic sync:
+Argo CD applies detected Git changes automatically when configured.
+Synced means configuration matches Git.
+Healthy means resources meet their health checks.
+An Application can be Synced but unhealthy.
+6. SELF-HEAL
+When enabled with automated sync, Argo CD corrects changes made directly in the cluster.
+Example:
+Someone manually changes replicas from two to three.
+Argo CD restores two because Git still specifies two.
+Self-heal corrects configuration drift. Kubernetes handles tasks such as restarting failed containers.
+7. PRUNE
+When enabled for a sync, Argo CD deletes managed resources that are no longer present in the desired configuration.
+Example:
+We remove a Service manifest from Git.
+A sync with pruning deletes that Service from the cluster.
+Without pruning, the resource can remain in the cluster.
+8. ROLLBACK THROUGH GIT
+9. Identify the previous working image and configuration.
+10. Revert the faulty deployment commit or restore the previous image reference in values.
+11. Review and merge the change into the tracked branch.
+12. Argo CD syncs automatically, or we trigger Sync.
+13. Kubernetes rolls out the restored configuration.
+14. Verify pods, ALB target health and application functionality.
+Reverting Git creates a new commit and preserves history.
+Database migrations need a separate recovery plan; an image rollback does not undo database changes.
+INTERVIEW ANSWER
+“Our Argo CD Applications track environment-specific configuration in Git. Argo CD compares the rendered desired state with the live cluster and syncs differences. Automated self-heal can correct manual drift, while pruning removes resources deleted from Git. For rollback, we restore the previous working configuration through a Git commit and let Argo CD reconcile it.”

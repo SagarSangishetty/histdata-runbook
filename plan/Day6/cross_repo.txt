@@ -1,0 +1,22 @@
+We use two repositories with different responsibilities:
+Application repository:
+Stores application code, tests, Dockerfile and build workflow.
+Deployment repository:
+Stores the Helm chart, environment values and Argo CD configuration.
+HOW OUR FLOW WORKS
+1. Code merges into the application repository’s main branch.
+2. GitHub Actions runs tests, builds the image and pushes it to dev ECR with a commit-SHA tag.
+3. The workflow captures the published image reference.
+4. Using a temporary GitHub App token, it updates the dev image reference in the deployment repository’s Helm values.
+5. It creates a promotion branch and pull request.
+6. After merge, Argo CD detects the deployment configuration change and syncs it to dev.
+PRODUCTION PROMOTION
+After dev validation, we copy the same tested image digest from dev ECR to prod ECR and update the prod Helm values through a deployment-repository change.
+We promote the existing image; we do not rebuild it for prod.
+IMPORTANT DISTINCTION
+The image stays in ECR.
+Git stores the image reference and deployment configuration.
+AWS OIDC authorizes AWS operations.
+The GitHub App token authorizes cross-repository Git changes.
+INTERVIEW ANSWER
+“Our application pipeline builds and publishes the image to ECR, then uses a GitHub App token to open a pull request updating the image reference in our deployment repository. After merge, Argo CD deploys the change. For production, we promote the same tested image digest and update the prod values, keeping builds separate from deployments.”

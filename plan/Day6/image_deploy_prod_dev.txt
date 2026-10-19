@@ -1,0 +1,65 @@
+DEV PIPELINE
+1. On a pull request to main:
+   If the listed application/build files changed, Maven tests run.
+   No image is pushed and no promotion PR is created.
+2. On a matching push to main:
+   Tests run first.
+   The image job then assumes the dev AWS role through OIDC.
+3. Build and publish:
+   Docker Buildx builds the image using GitHub Actions caching.
+   It pushes to dev ECR with the full application commit SHA as its tag.
+4. Update deployment configuration:
+   The workflow generates a GitHub App token.
+   It checks out histdata-k8s-deployments.
+   It updates environments/dev/values.yaml:
+   image.tag = application commit SHA
+5. Validate and open PR:
+   Helm lint and template commands check the configuration.
+   A PR is created against the deployment repository’s main branch.
+6. Deploy:
+   After that PR merges, dev Argo CD detects the change.
+   With auto-sync enabled, it applies it; otherwise you trigger Sync.
+Manual dispatch on main also runs this sequence. A newer run for the same Git ref can cancel an ongoing dev run.
+PROD PIPELINE
+This runs ONLY when you manually select Run workflow. It does not run automatically after every dev merge.
+JOB 1 - SELECT THE IMAGE
+1. Checks out the deployment repository’s main branch.
+2. Reads the CURRENT dev image tag from environments/dev/values.yaml.
+3. Validates that it is a full commit SHA.
+4. Assumes the dev AWS role.
+5. Resolves that image’s ECR digest.
+6. Passes the selected SHA and digest to the next job.
+Important:
+You do not enter a version manually. This workflow selects whichever image is referenced in dev values when this job reads them.
+JOB 2 - COPY TO PROD
+1. Uses the GitHub environment named prod.
+   It waits for approval only if required reviewers are configured for that environment.
+2. Assumes the prod promotion role through OIDC.
+3. Authenticates to both ECR registries using that role.
+   The dev repository must permit this prod role to pull images.
+4. Checks that the selected dev SHA tag still resolves to the expected digest.
+5. Copies the image BY DIGEST from dev ECR to prod ECR.
+   It assigns the same SHA tag in prod.
+6. Verifies that the prod digest matches the selected dev digest.
+No application rebuild happens.
+JOB 3 - CREATE PROD PR
+1. Generates a GitHub App token.
+2. Updates environments/prod/values.yaml with:
+   image.repository = prod ECR repository
+   image.tag = selected application SHA
+3. Runs Helm validation.
+4. Creates or updates the prod promotion PR.
+After the PR merges, prod Argo CD detects and syncs the configuration according to its sync settings.
+EXAMPLE
+Dev currently references image A.
+You manually start prod promotion.
+The workflow selects A and resolves its digest.
+While approval is pending, dev moves to B.
+The running prod workflow still promotes A. It keeps the SHA and digest selected earlier; it does not reselect B.
+TWO IMPORTANT CLARIFICATIONS
+1. “Tested in dev” is a human release decision here.
+   The prod workflow checks Git configuration and ECR image identity. It does not verify that dev Argo CD has deployed that image, that pods are healthy, or that application testing passed.
+2. Your Helm values deploy using SHA TAGS.
+   The prod workflow copies and verifies by digest, but it writes the SHA tag into values—not the digest. ECR tag immutability protects that tag from being overwritten.
+INTERVIEW ANSWER
+“Our dev pipeline tests and builds application changes, pushes a commit-SHA image to dev ECR, and opens a PR updating dev GitOps values. Production promotion is manually triggered. It selects the image currently referenced in dev Git, copies its exact digest to prod ECR, verifies the digest, and opens a prod configuration PR. After merge, Argo CD deploys the selected release.”
