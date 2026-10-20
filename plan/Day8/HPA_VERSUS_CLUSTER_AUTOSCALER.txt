@@ -1,0 +1,45 @@
+1. HPA - SCALES PODS
+Horizontal Pod Autoscaler changes the number of application replicas based on metrics.
+
+Example:
+Traffic increases -> CPU utilization rises -> HPA increases replicas from 2 to 4.
+
+For CPU/memory scaling, it uses the resource metrics API, normally provided by Metrics Server.
+2. CLUSTER AUTOSCALER - SCALES NODES
+Cluster Autoscaler adjusts worker-node count within configured node-group limits.
+
+Scale up:
+Pods cannot be scheduled because suitable node capacity is insufficient.
+
+Scale down:
+A node can be removed safely, with its workloads moved elsewhere.
+
+It evaluates pod resource requests and scheduling requirements. It does not simply add nodes whenever node CPU usage is high.
+3. WHEN BOTH ARE REQUIRED
+When application demand can exceed the capacity of existing nodes.
+
+Example:
+1. Traffic increases.
+2. HPA requests more application replicas.
+3. Existing nodes have insufficient capacity.
+4. New pods remain Pending.
+5. Cluster Autoscaler increases the appropriate node group.
+6. New nodes become Ready.
+7. Kubernetes schedules the Pending pods.
+As demand falls, HPA reduces replicas. Cluster Autoscaler can later remove unnecessary nodes if workloads and disruption constraints allow.
+4. IMPORTANT LIMITATIONS
+HPA alone:
+Creates more replicas, but they may remain Pending without node capacity.
+
+Cluster Autoscaler alone:
+Adds node capacity for unschedulable pods, but does not increase application replicas.
+
+Both operate within configured limits. Scaling also depends on AWS capacity, quotas and scheduling constraints.
+
+OUR PROJECT STATUS
+
+Neither HPA nor Cluster Autoscaler has been confirmed as implemented. We’ll configure and verify scaling during the practical setup.
+
+INTERVIEW ANSWER
+
+“HPA scales application pods based on metrics, while Cluster Autoscaler scales worker nodes based on scheduling needs. We use both when increased application replicas may exceed existing node capacity: HPA requests more pods, and Cluster Autoscaler adds nodes so those pods can run.”

@@ -1,0 +1,45 @@
+QOS CLASSES
+
+QoS means Quality of Service. Kubernetes assigns a pod’s QoS class based on its CPU and memory requests and limits.
+1. GUARANTEED
+Every container has CPU and memory requests and limits, with request equal to limit for each resource.
+
+Example per container:
+CPU request: 500m
+CPU limit: 500m
+Memory request: 512Mi
+Memory limit: 512Mi
+
+Provides the strongest protection during node resource pressure, but does not prevent OOMKilled if a container exceeds its memory limit.
+2. BURSTABLE
+The pod has at least one CPU or memory request or limit, but does not meet Guaranteed requirements.
+
+Example:
+CPU request: 250m
+CPU limit: 500m
+Memory request: 256Mi
+Memory limit: 512Mi
+
+Allows usage above requests, subject to available resources and limits.
+3. BESTEFFORT
+No container specifies CPU or memory requests or limits.
+
+Has the least protection during node resource pressure.
+
+IMPORTANT DIFFERENCE
+
+Container exceeds its memory limit:
+The container can be OOMKilled.
+
+Node runs low on memory:
+Kubernetes may evict entire pods to reclaim resources.
+
+BestEffort pods are generally most vulnerable. For memory-pressure eviction, Kubernetes considers whether usage exceeds requests, pod priority and usage relative to requests. QoS alone does not determine a fixed eviction order.
+
+CHECK A POD’S QOS
+
+kubectl get pod <pod-name> -n histdata -o jsonpath='{.status.qosClass}'
+
+INTERVIEW ANSWER
+
+“Kubernetes has Guaranteed, Burstable and BestEffort QoS classes. Guaranteed requires matching CPU and memory requests and limits for every container. Burstable has resource settings without meeting those requirements, while BestEffort has none. These settings influence protection under resource pressure, but even a Guaranteed container can be OOMKilled if it exceeds its memory limit.

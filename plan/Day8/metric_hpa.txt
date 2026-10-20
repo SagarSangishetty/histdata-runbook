@@ -1,0 +1,55 @@
+METRICS SERVER AND HPA
+1. METRICS SERVER
+Metrics Server collects recent CPU and memory usage from kubelets on worker nodes and exposes it through the Kubernetes resource metrics API.
+
+It supports:
+kubectl top nodes
+kubectl top pods
+CPU and memory based HPA scaling.
+
+It provides recent usage, not long-term monitoring history.
+2. VERIFY METRICS SERVER
+Run:
+
+kubectl get deployment metrics-server -n kube-system
+kubectl top nodes
+kubectl top pods -n histdata
+
+Expected:
+The Metrics Server Deployment has ready replicas.
+The top commands display CPU and memory usage.
+
+If top returns “Metrics API not available”, investigate Metrics Server availability, logs and connectivity.
+3. HOW HPA USES METRICS
+HPA means Horizontal Pod Autoscaler. It adjusts the number of application pods.
+
+Flow:
+Metrics Server reports usage.
+HPA reads the metrics API.
+HPA compares usage with its configured target.
+HPA updates the Deployment's replica count.
+
+HPA does not create worker nodes. Adding nodes requires a separate node-scaling mechanism.
+4. CPU UTILIZATION EXAMPLE
+CPU request per pod: 250m
+HPA CPU target: 60%
+
+60% of 250m = 150m.
+
+If two pods average 225m each:
+CPU utilization = 90% of their requests.
+
+Approximate desired replicas:
+2 x (90 / 60) = 3 pods.
+
+The controller also considers factors such as readiness, missing metrics, stabilization and configured scaling limits.
+
+The percentage is relative to CPU requests, not CPU limits or the entire node's CPU.
+5. IMPORTANT FOR OUR GITOPS SETUP
+If HPA controls replicas, our Helm chart and Argo CD configuration must allow it to manage that field. Otherwise, GitOps self-healing can conflict with HPA's replica changes.
+
+We have not verified that Metrics Server or HPA is currently installed in our cluster.
+
+INTERVIEW ANSWER
+
+“Metrics Server exposes recent pod CPU and memory usage through the resource metrics API. HPA reads these metrics, compares them with its target and adjusts Deployment replicas within configured bounds. CPU utilization targets are calculated against resource requests.”

@@ -1,0 +1,67 @@
+KUBERNETES HEALTH PROBES
+
+Probes are checks performed by the kubelet to determine whether a container has started, can receive traffic, or needs restarting.
+1. STARTUP PROBE
+Question:
+Has the application finished starting?
+
+Useful for applications that take time to initialize, such as our Java application.
+
+On failure:
+Kubernetes retries. After failureThreshold consecutive failures, the container is terminated and restarted according to its restart policy.
+
+Until startup succeeds, liveness and readiness checks do not run.
+2. READINESS PROBE
+Question:
+Can this application instance receive traffic?
+
+On failure:
+The pod becomes NotReady and is excluded from normal Service traffic. The container continues running.
+
+When the probe succeeds again, the pod can receive traffic again.
+
+Example:
+The application is temporarily unable to serve requests.
+3. LIVENESS PROBE
+Question:
+Is the application functioning, or is it stuck and needs restarting?
+
+On failure:
+After failureThreshold consecutive failures, the container is terminated and restarted according to its restart policy.
+
+Example:
+The application process is running but is deadlocked.
+
+Avoid making liveness depend on a shared database being available. A database outage could otherwise trigger unnecessary restarts across all pods.
+
+IMPORTANT SETTINGS
+
+initialDelaySeconds:
+Wait before starting checks.
+
+periodSeconds:
+How often to check.
+
+timeoutSeconds:
+How long to wait for a response.
+
+failureThreshold:
+Consecutive failures before taking the probe’s failure action.
+
+OUR APPLICATION
+
+Our handover lists these Spring Boot endpoints:
+
+Readiness:
+/actuator/health/readiness
+
+Liveness:
+/actuator/health/liveness
+
+Endpoint availability alone does not confirm that probes are configured in the Deployment. Startup-probe configuration also needs verification.
+
+ALB target health checks are separate from Kubernetes probes.
+
+INTERVIEW ANSWER
+
+“Startup probes allow time for initialization before readiness and liveness checks begin. Readiness failures stop normal traffic to the pod without restarting it. Liveness failures trigger a container restart after the configured threshold.”
