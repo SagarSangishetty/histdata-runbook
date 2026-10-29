@@ -1,0 +1,47 @@
+IMPORTANT CONFIGURATION
+1. RETENTION
+   How long Prometheus keeps metrics.
+   Dev starting point: 3 days.
+   Also configure a size limit below disk capacity to leave operational headroom.
+2. PERSISTENT STORAGE
+   Use an EBS-backed PVC for Prometheus.
+   Metrics should survive pod replacement.
+   Grafana also needs persistent storage if we want UI-created changes to survive; preferably provision dashboards and data sources from Git.
+3. RESOURCE REQUESTS AND LIMITS
+   Set them for monitoring components.
+   Size from observed usage and scrape volume. Our two t3.medium nodes require a small setup; memory limits that are too low can cause OOM kills.
+4. SCRAPE INTERVAL
+   How frequently Prometheus collects metrics.
+   Dev starting point: 30 seconds.
+   Faster scraping increases storage and processing requirements.
+5. RULE EVALUATION INTERVAL
+   How frequently Prometheus evaluates recording and alerting rules.
+   Starting point: 30 seconds.
+6. TARGET DISCOVERY
+   Configure ServiceMonitor and PodMonitor selectors deliberately.
+   Verify that intended application targets appear and are UP.
+7. EKS-SPECIFIC MONITORING
+   Disable scrapers for managed control-plane components whose metrics endpoints we cannot access, such as etcd, scheduler and controller manager.
+   Otherwise, we can get misleading target-down alerts.
+8. ALERTING
+   Configure alerts for:
+   Unavailable application replicas.
+   Repeated container restarts and OOM kills.
+   Node readiness.
+   Low disk space.
+   Application error rate and latency, where metrics exist.
+   Configure thresholds, a “for” duration, severity, grouping and a tested notification receiver.
+9. ACCESS AND SECRETS
+   Initially use port-forwarding.
+   If exposed later, use HTTPS and authenticated access.
+   Keep credentials out of Git and restrict network access.
+10. VERSION CONTROL
+    Pin the Helm chart version.
+    Store environment values, dashboards and alert rules in Git.
+    Review changes before applying them.
+11. CARDINALITY
+    Avoid labels containing user IDs, request IDs or unrestricted URLs.
+    Too many unique label combinations can exhaust Prometheus memory and storage.
+12. AVAILABILITY AND RECOVERY
+    One replica is sufficient for our dev exercise.
+    It is not highly available. Production needs availability, storage recovery and retention designed around actual requirements.
