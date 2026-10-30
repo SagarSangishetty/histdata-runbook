@@ -1,0 +1,4 @@
+retention: 24h
+retentionSize: "1GB"
+
+Prometheus retains metrics for up to 24 hours, with a 1 GB size limit. Whichever limit is reached first triggers removal of older data.

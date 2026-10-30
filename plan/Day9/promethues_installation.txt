@@ -38,4 +38,76 @@ Get your grafana admin user password by running:
 
   kubectl get secret --namespace monitoring -l app.kubernetes.io/component=admin-secret -o jsonpath="{.items[0].data.admin-password}" | base64 --decode ; echo
 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+
+ARGO CD + PROMETHEUS + GRAFANA SETUP
+
+PURPOSE
+
+Run one shared monitoring stack per cluster to monitor multiple applications.
+
+COMPONENTS
+
+Prometheus: Collects and stores metrics.
+Grafana: Displays metrics through dashboards.
+Alertmanager: Groups and routes alerts.
+Prometheus Operator: Manages monitoring resources.
+Node Exporter: Exposes worker-node metrics.
+kube-state-metrics: Exposes Kubernetes resource state.
+
+OUR DEV CONFIGURATION
+
+Helm chart: kube-prometheus-stack
+Chart version: 92.14.1
+Release name: monitoring
+Namespace: monitoring
+Values file: monitoring/values-dev.yaml
+
+Prometheus uses one replica, 24-hour retention and temporary storage. Grafana persistence is disabled, so locally stored data can be lost when pods are replaced.
+
+ARGO CD FILES
+1. argocd/projects/monitoring.yaml
+   Defines allowed repositories, destination and resource types.
+   This is the permission boundary.
+2. argocd/applications/monitoring-dev.yaml
+   Selects the chart version, Git values file and destination.
+   This defines what Argo CD deploys.
+DEPLOYMENT FLOW
+
+Argo CD reads the upstream Helm chart and our Git values.
+Helm renders the Kubernetes manifests.
+Argo CD compares them with the cluster.
+Sync applies the desired configuration.
+
+We initially leave automatic sync disabled and review the diff before adopting the existing Helm installation.
+
+FUTURE CHANGES
+
+Edit values in Git -> Merge to main -> Review and sync in Argo CD.
+
+Once adopted, manage updates through Argo CD rather than separate Helm upgrades.
+
+APPLICATION MONITORING
+
+Each application exposes a metrics endpoint.
+A ServiceMonitor selects its Service and metrics endpoint.
+Prometheus discovers the ServiceMonitor and scrapes metrics.
+Grafana queries Prometheus to display dashboards.
+
+HistData endpoint: /actuator/prometheus
+Service port name: http
+
+Prometheus must be configured to discover the ServiceMonitor’s labels and namespace. Pod annotations alone do not establish this integration.
+
+MULTIPLE APPLICATIONS
+
+Reuse the same monitoring stack.
+Each application gets its own ServiceMonitor configuration.
+Change its Service selector, namespace, metrics path and named port as needed.
+
+STATUS
+
+The Helm stack is installed.
+Argo CD configuration has been prepared.
+Adoption and application scraping are complete only after sync, health and target checks pass.

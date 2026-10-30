@@ -1,0 +1,81 @@
+SERVICEMONITOR - QUICK REFERENCE
+
+Example configuration, not a verified copy of our installed settings.
+1. PROMETHEUS SIDE
+Relevant fields in the Prometheus resource:
+spec:
+  serviceMonitorNamespaceSelector:
+    matchLabels:
+      monitoring: enabled
+
+  serviceMonitorSelector:
+    matchLabels:
+      release: monitoring
+
+Meaning:
+- Search for ServiceMonitors in namespaces labelled monitoring=enabled.
+- Select ServiceMonitors labelled release=monitoring.
+Label the namespace containing the ServiceMonitor:
+kubectl label namespace histdata monitoring=enabled --overwrite
+
+For kube-prometheus-stack Helm values, these selectors go under prometheus.prometheusSpec. Keep the configuration in Git.
+2. SERVICEMONITOR CONFIGURATION
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: histdata-app
+  namespace: histdata
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - histdata
+  selector:
+    matchLabels:
+      app: histdata-app
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 30s
+
+Meaning:
+- Located in namespace histdata.
+- release label matches Prometheus’s selector.
+- Searches for Services in histdata.
+- Selects Services labelled app=histdata-app.
+- Scrapes their named port http at /actuator/prometheus.
+3. MATCHING SERVICE CONFIGURATION
+metadata:
+  labels:
+    app: histdata-app
+spec:
+  selector:
+    app: histdata-app
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+
+ServiceMonitor selects the Service’s metadata labels.
+Service selects the pods’ labels.
+ServiceMonitor endpoint port must match the Service port NAME: http.
+
+REMEMBER THE FOUR MATCHES
+1. Prometheus namespace selector -> ServiceMonitor namespace labels.
+2. Prometheus monitor selector -> ServiceMonitor labels.
+3. ServiceMonitor namespace selector -> Service namespace.
+4. ServiceMonitor selector -> Service labels.
+The label “release” is a selection convention, not a special Kubernetes requirement. Its value must match your configured selector.
+
+The Operator turns this configuration into scrape targets; Prometheus scrapes the discovered pod endpoints. Prometheus Operator
+
+QUICK TROUBLESHOOTING
+
+Target missing:
+Check namespaces, selectors, labels and named port.
+
+Target present but DOWN:
+Check endpoint availability, application readiness, connectivity and authentication.
+
+The application must expose /actuator/prometheus; having readiness/liveness endpoints alone is insufficient.
